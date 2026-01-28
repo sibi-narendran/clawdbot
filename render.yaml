@@ -1,4 +1,24 @@
 services:
+  # Gateway service for workforce platform
+  - type: web
+    name: workforce-gateway
+    runtime: node
+    plan: starter
+    buildCommand: npm i -g pnpm@10 && pnpm install && pnpm build
+    startCommand: node moltbot.mjs gateway --port $PORT --bind lan --allow-unconfigured
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MOLTBOT_STATE_DIR
+        value: /opt/render/project/.moltbot
+      - key: CLAWDBOT_GATEWAY_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+
+  # Original Docker-based service (for reference)
   - type: web
     name: moltbot
     runtime: docker
