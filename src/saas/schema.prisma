@@ -1,0 +1,132 @@
+// Prisma schema for production multi-tenant SaaS
+// Run: npx prisma migrate dev
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  accountId String   @unique // Maps to Moltbot accountId
+  agentId   String   @unique // Maps to Moltbot agent
+  apiKey    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  channels TenantChannel[]
+  sessions Session[]
+  users    TenantUser[]
+
+  // Billing
+  plan           String  @default("free") // free, starter, pro, enterprise
+  stripeCustomerId String?
+
+  @@index([apiKey])
+}
+
+model TenantChannel {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  channel   String   // telegram, discord, slack, whatsapp
+  enabled   Boolean  @default(true)
+
+  // Encrypted credentials (use @map for column-level encryption)
+  credentials Json?
+
+  // Channel-specific metadata
+  botUsername String?
+  webhookUrl  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, channel])
+  @@index([tenantId])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sessionKey String  // Moltbot session key format
+  channel    String
+  peerId     String
+  chatType   String  // dm, group, channel
+
+  // Session data (conversation state)
+  data       Json    @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime?
+
+  @@unique([tenantId, sessionKey])
+  @@index([tenantId])
+  @@index([sessionKey])
+}
+
+model TenantUser {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  email     String
+  name      String?
+  role      String   @default("member") // owner, admin, member
+
+  // Auth
+  passwordHash String?
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([email])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String?
+
+  action    String   // tenant.created, channel.added, message.sent, etc.
+  resource  String   // tenant, channel, session, message
+  resourceId String?
+
+  metadata  Json     @default("{}")
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Webhook {
+  id        String   @id @default(uuid())
+  tenantId  String
+
+  url       String
+  events    String[] // message.received, message.sent, session.started
+  secret    String   // For signature verification
+  enabled   Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
