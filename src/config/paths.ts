@@ -197,7 +197,9 @@ export const CONFIG_PATH = resolveConfigPathCandidate();
 
 /**
  * Resolve default config path candidates across default locations.
- * Order: explicit config path → state-dir-derived paths → new default.
+ * Order: explicit config path → tenant override → state-dir-derived paths → new default.
+ *
+ * Multi-tenant: If _tenantStateDirOverride is set, those paths come first.
  */
 export function resolveDefaultConfigCandidates(
   env: NodeJS.ProcessEnv = process.env,
@@ -207,6 +209,14 @@ export function resolveDefaultConfigCandidates(
   if (explicit) return [resolveUserPath(explicit)];
 
   const candidates: string[] = [];
+
+  // Multi-tenant: tenant state dir override takes priority
+  const tenantDir = _tenantStateDirOverride;
+  if (tenantDir) {
+    candidates.push(path.join(tenantDir, CONFIG_FILENAME));
+    candidates.push(...LEGACY_CONFIG_FILENAMES.map((name) => path.join(tenantDir, name)));
+  }
+
   const openclawStateDir = env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim();
   if (openclawStateDir) {
     const resolved = resolveUserPath(openclawStateDir);
