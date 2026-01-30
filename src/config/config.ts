@@ -1,4 +1,5 @@
 export {
+  clearConfigCacheForTenant,
   createConfigIO,
   loadConfig,
   parseConfigJson5,

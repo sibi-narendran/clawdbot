@@ -78,7 +78,7 @@
     "dist/whatsapp/**"
   ],
   "scripts": {
-    "dev": "node scripts/run-node.mjs",
+    "dev": "node scripts/watch-node.mjs gateway --force",
     "postinstall": "node scripts/postinstall.js",
     "prepack": "pnpm build && pnpm ui:build",
     "docs:list": "node scripts/docs-list.js",

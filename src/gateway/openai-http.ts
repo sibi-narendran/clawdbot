@@ -4,6 +4,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply/reply/history.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
+import {
+  clearConfigCacheForTenant,
+  resolveTenantStateDirFromId,
+  setTenantStateDir,
+} from "../config/config.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { defaultRuntime } from "../runtime.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
@@ -16,6 +21,42 @@ import {
   writeDone,
 } from "./http-common.js";
 import { getBearerToken, resolveAgentIdForRequest, resolveSessionKey } from "./http-utils.js";
+
+/**
+ * Extract tenant ID from request headers.
+ * Supports: X-Tenant-ID, X-Tenant-Id (case-insensitive)
+ */
+function getTenantIdFromRequest(req: IncomingMessage): string | undefined {
+  const header = req.headers["x-tenant-id"];
+  if (typeof header === "string" && header.trim()) {
+    return header.trim();
+  }
+  if (Array.isArray(header) && header[0]?.trim()) {
+    return header[0].trim();
+  }
+  return undefined;
+}
+
+/**
+ * Set up tenant context for a request.
+ * Returns a cleanup function to call when done.
+ */
+function setupTenantContext(req: IncomingMessage): () => void {
+  const tenantId = getTenantIdFromRequest(req);
+  if (!tenantId) {
+    // No tenant specified - use default behavior
+    return () => {};
+  }
+
+  const tenantStateDir = resolveTenantStateDirFromId(tenantId);
+  clearConfigCacheForTenant();
+  setTenantStateDir(tenantStateDir);
+
+  return () => {
+    setTenantStateDir(null);
+    clearConfigCacheForTenant();
+  };
+}
 
 type OpenAiHttpOptions = {
   auth: ResolvedGatewayAuth;
@@ -197,6 +238,9 @@ export async function handleOpenAiHttpRequest(
     return true;
   }
 
+  // Set up tenant context from X-Tenant-ID header
+  const cleanupTenant = setupTenantContext(req);
+
   const runId = `chatcmpl_${randomUUID()}`;
   const deps = createDefaultDeps();
 
@@ -243,6 +287,8 @@ export async function handleOpenAiHttpRequest(
       sendJson(res, 500, {
         error: { message: String(err), type: "api_error" },
       });
+    } finally {
+      cleanupTenant();
     }
     return true;
   }
@@ -388,6 +434,7 @@ export async function handleOpenAiHttpRequest(
         writeDone(res);
         res.end();
       }
+      cleanupTenant();
     }
   })();
 

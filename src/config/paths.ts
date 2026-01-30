@@ -4,6 +4,49 @@ import path from "node:path";
 import type { OpenClawConfig } from "./types.js";
 
 /**
+ * Multi-tenant support: Override the state directory per-request.
+ * Set before processing a request, clear after.
+ * WARNING: This is a hack for single-threaded request processing.
+ * For concurrent requests from different tenants, proper context threading is needed.
+ */
+let _tenantStateDirOverride: string | null = null;
+
+/**
+ * Set the tenant state directory override.
+ * Call with null to clear and use default resolution.
+ */
+export function setTenantStateDir(stateDir: string | null): void {
+  _tenantStateDirOverride = stateDir;
+}
+
+/**
+ * Get the current tenant state directory override.
+ */
+export function getTenantStateDir(): string | null {
+  return _tenantStateDirOverride;
+}
+
+/**
+ * Resolve a tenant's state directory from tenant ID.
+ * Uses TENANT_DATA_DIR env var as base, defaults to /data/tenants.
+ *
+ * Directory structure matches workforce platform:
+ *   ${TENANT_DATA_DIR}/${tenantId}/
+ *     ├── clawdbot.json (or openclaw.json)
+ *     └── agents/
+ *
+ * Note: Does NOT add .openclaw subdirectory - uses tenant dir directly.
+ */
+export function resolveTenantStateDirFromId(
+  tenantId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const baseDir = env.TENANT_DATA_DIR?.trim() || "/data/tenants";
+  // Return tenant dir directly (no .openclaw subdir) to match platform structure
+  return path.join(baseDir, tenantId);
+}
+
+/**
  * Nix mode detection: When OPENCLAW_NIX_MODE=1, the gateway is running under Nix.
  * In this mode:
  * - No auto-install flows should be attempted
@@ -45,11 +88,17 @@ export function resolveNewStateDir(homedir: () => string = os.homedir): string {
  * State directory for mutable data (sessions, logs, caches).
  * Can be overridden via OPENCLAW_STATE_DIR.
  * Default: ~/.openclaw
+ *
+ * Multi-tenant: If setTenantStateDir() was called, returns that override.
  */
 export function resolveStateDir(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = os.homedir,
 ): string {
+  // Multi-tenant override takes precedence
+  if (_tenantStateDirOverride) {
+    return _tenantStateDirOverride;
+  }
   const override = env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim();
   if (override) return resolveUserPath(override);
   const newDir = newStateDir(homedir);
