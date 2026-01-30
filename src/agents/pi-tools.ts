@@ -269,12 +269,12 @@ export function createOpenClawCodingTools(options?: {
     approvalRunningNoticeMs:
       options?.exec?.approvalRunningNoticeMs ?? execConfig.approvalRunningNoticeMs,
     notifyOnExit: options?.exec?.notifyOnExit ?? execConfig.notifyOnExit,
-    sandbox: sandbox
+    sandbox: sandbox?.containerName
       ? {
           containerName: sandbox.containerName,
           workspaceDir: sandbox.workspaceDir,
-          containerWorkdir: sandbox.containerWorkdir,
-          env: sandbox.docker.env,
+          containerWorkdir: sandbox.containerWorkdir ?? "/workspace",
+          env: sandbox.docker?.env,
         }
       : undefined,
   });

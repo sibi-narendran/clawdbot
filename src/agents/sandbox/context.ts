@@ -31,6 +31,28 @@ export async function resolveSandboxContext(params: {
 
   const cfg = resolveSandboxConfigForAgent(params.config, runtime.agentId);
 
+  // Light sandbox mode: path validation only, no Docker
+  if (cfg.mode === "paths-only") {
+    const agentWorkspaceDir = resolveUserPath(
+      params.workspaceDir?.trim() || DEFAULT_AGENT_WORKSPACE_DIR,
+    );
+    const workspaceRoot = resolveUserPath(cfg.workspaceRoot);
+
+    // Ensure workspace directory exists
+    await fs.mkdir(workspaceRoot, { recursive: true });
+
+    return {
+      enabled: true,
+      sessionKey: rawSessionKey,
+      workspaceDir: workspaceRoot,
+      agentWorkspaceDir,
+      workspaceAccess: cfg.workspaceAccess,
+      // No Docker fields - paths-only mode
+      tools: cfg.tools,
+      browserAllowHostControl: false,
+    };
+  }
+
   await maybePruneSandboxes(cfg);
 
   const agentWorkspaceDir = resolveUserPath(

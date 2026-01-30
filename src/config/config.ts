@@ -10,6 +10,13 @@ export {
 export { migrateLegacyConfig } from "./legacy-migrate.js";
 export * from "./paths.js";
 export * from "./runtime-overrides.js";
+export {
+  getTenantContext,
+  getTenantIdFromContext,
+  runWithTenantContext,
+  runWithTenantContextAsync,
+  type TenantContext,
+} from "./tenant-context.js";
 export * from "./types.js";
 export { validateConfigObject, validateConfigObjectWithPlugins } from "./validation.js";
 export { OpenClawSchema } from "./zod-schema.js";

@@ -24,7 +24,11 @@ import type { createSubsystemLogger } from "../../../logging/subsystem.js";
 import { isGatewayCliClient, isWebchatClient } from "../../../utils/message-channel.js";
 import type { ResolvedGatewayAuth } from "../../auth.js";
 import { authorizeGatewayConnect, isLocalDirectRequest } from "../../auth.js";
-import { loadConfig } from "../../../config/config.js";
+import {
+  loadConfig,
+  runWithTenantContextAsync,
+  type TenantContext,
+} from "../../../config/config.js";
 import { buildDeviceAuthPayload } from "../../device-auth.js";
 import { isLoopbackAddress, isTrustedProxyAddress, resolveGatewayClientIp } from "../../net.js";
 import { resolveNodeCommandAllowlist } from "../../node-command-policy.js";
@@ -157,6 +161,7 @@ export function attachGatewayWsMessageHandler(params: {
   logGateway: SubsystemLogger;
   logHealth: SubsystemLogger;
   logWsControl: SubsystemLogger;
+  tenantContext?: TenantContext | null;
 }) {
   const {
     socket,
@@ -187,6 +192,7 @@ export function attachGatewayWsMessageHandler(params: {
     logGateway,
     logHealth,
     logWsControl,
+    tenantContext,
   } = params;
 
   const configSnapshot = loadConfig();
@@ -229,9 +235,11 @@ export function attachGatewayWsMessageHandler(params: {
 
   const isWebchatConnect = (p: ConnectParams | null | undefined) => isWebchatClient(p?.client);
 
-  socket.on("message", async (data) => {
-    if (isClosed()) return;
-    const text = rawDataToString(data);
+  /**
+   * Process an incoming WebSocket message.
+   * This function is called within the tenant context when multi-tenant mode is active.
+   */
+  const processMessage = async (text: string) => {
     try {
       const parsed = JSON.parse(text);
       const frameType =
@@ -936,6 +944,18 @@ export function attachGatewayWsMessageHandler(params: {
       if (!getClient()) {
         close();
       }
+    }
+  };
+
+  socket.on("message", async (data) => {
+    if (isClosed()) return;
+    const text = rawDataToString(data);
+
+    // Wrap message processing in tenant context for multi-tenant isolation
+    if (tenantContext) {
+      await runWithTenantContextAsync(tenantContext, () => processMessage(text));
+    } else {
+      await processMessage(text);
     }
   });
 }

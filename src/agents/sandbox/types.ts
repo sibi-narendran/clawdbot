@@ -49,7 +49,7 @@ export type SandboxPruneConfig = {
 export type SandboxScope = "session" | "agent" | "shared";
 
 export type SandboxConfig = {
-  mode: "off" | "non-main" | "all";
+  mode: "off" | "non-main" | "all" | "paths-only";
   scope: SandboxScope;
   workspaceAccess: SandboxWorkspaceAccess;
   workspaceRoot: string;
@@ -71,9 +71,9 @@ export type SandboxContext = {
   workspaceDir: string;
   agentWorkspaceDir: string;
   workspaceAccess: SandboxWorkspaceAccess;
-  containerName: string;
-  containerWorkdir: string;
-  docker: SandboxDockerConfig;
+  containerName?: string; // Optional - only for Docker modes
+  containerWorkdir?: string; // Optional - only for Docker modes
+  docker?: SandboxDockerConfig; // Optional - only for Docker modes
   tools: SandboxToolPolicy;
   browserAllowHostControl: boolean;
   browser?: SandboxBrowserContext;

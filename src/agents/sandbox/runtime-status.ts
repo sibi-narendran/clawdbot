@@ -9,7 +9,7 @@ import type { SandboxConfig, SandboxToolPolicyResolved } from "./types.js";
 
 function shouldSandboxSession(cfg: SandboxConfig, sessionKey: string, mainSessionKey: string) {
   if (cfg.mode === "off") return false;
-  if (cfg.mode === "all") return true;
+  if (cfg.mode === "all" || cfg.mode === "paths-only") return true;
   return sessionKey.trim() !== mainSessionKey.trim();
 }
 

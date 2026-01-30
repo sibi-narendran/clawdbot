@@ -383,7 +383,7 @@ function pickToolPolicy(config?: { allow?: string[]; deny?: string[] }): Sandbox
 function resolveToolPolicies(params: {
   cfg: OpenClawConfig;
   agentTools?: AgentToolsConfig;
-  sandboxMode?: "off" | "non-main" | "all";
+  sandboxMode?: "off" | "non-main" | "all" | "paths-only";
   agentId?: string | null;
 }): SandboxToolPolicy[] {
   const policies: SandboxToolPolicy[] = [];

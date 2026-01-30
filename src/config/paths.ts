@@ -2,28 +2,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { OpenClawConfig } from "./types.js";
+import { getTenantStateDirFromContext } from "./tenant-context.js";
 
 /**
- * Multi-tenant support: Override the state directory per-request.
- * Set before processing a request, clear after.
- * WARNING: This is a hack for single-threaded request processing.
- * For concurrent requests from different tenants, proper context threading is needed.
- */
-let _tenantStateDirOverride: string | null = null;
-
-/**
- * Set the tenant state directory override.
- * Call with null to clear and use default resolution.
- */
-export function setTenantStateDir(stateDir: string | null): void {
-  _tenantStateDirOverride = stateDir;
-}
-
-/**
- * Get the current tenant state directory override.
+ * Get the current tenant state directory from AsyncLocalStorage context.
+ * Returns null if no tenant context is active (default/single-tenant mode).
+ *
+ * Multi-tenant requests must be wrapped in runWithTenantContextAsync()
+ * to ensure proper context isolation across concurrent requests.
  */
 export function getTenantStateDir(): string | null {
-  return _tenantStateDirOverride;
+  return getTenantStateDirFromContext();
 }
 
 /**
@@ -89,15 +78,17 @@ export function resolveNewStateDir(homedir: () => string = os.homedir): string {
  * Can be overridden via OPENCLAW_STATE_DIR.
  * Default: ~/.openclaw
  *
- * Multi-tenant: If setTenantStateDir() was called, returns that override.
+ * Multi-tenant: If running within a tenant context (via runWithTenantContextAsync),
+ * returns the tenant's state directory.
  */
 export function resolveStateDir(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = os.homedir,
 ): string {
-  // Multi-tenant override takes precedence
-  if (_tenantStateDirOverride) {
-    return _tenantStateDirOverride;
+  // Multi-tenant: AsyncLocalStorage context takes precedence
+  const tenantStateDir = getTenantStateDirFromContext();
+  if (tenantStateDir) {
+    return tenantStateDir;
   }
   const override = env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim();
   if (override) return resolveUserPath(override);
@@ -199,7 +190,8 @@ export const CONFIG_PATH = resolveConfigPathCandidate();
  * Resolve default config path candidates across default locations.
  * Order: explicit config path → tenant override → state-dir-derived paths → new default.
  *
- * Multi-tenant: If _tenantStateDirOverride is set, those paths come first.
+ * Multi-tenant: If running within a tenant context (via runWithTenantContextAsync),
+ * tenant paths come first.
  */
 export function resolveDefaultConfigCandidates(
   env: NodeJS.ProcessEnv = process.env,
@@ -210,8 +202,8 @@ export function resolveDefaultConfigCandidates(
 
   const candidates: string[] = [];
 
-  // Multi-tenant: tenant state dir override takes priority
-  const tenantDir = _tenantStateDirOverride;
+  // Multi-tenant: AsyncLocalStorage context takes priority
+  const tenantDir = getTenantStateDirFromContext();
   if (tenantDir) {
     candidates.push(path.join(tenantDir, CONFIG_FILENAME));
     candidates.push(...LEGACY_CONFIG_FILENAMES.map((name) => path.join(tenantDir, name)));
