@@ -161,7 +161,7 @@ describe("tenant context", () => {
       const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
       // Start many concurrent operations with different contexts
-      const promises = contexts.map((ctx, index) =>
+      const promises = contexts.map((ctx) =>
         runWithTenantContextAsync(ctx, async () => {
           const samples: (string | null)[] = [];
 
