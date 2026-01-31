@@ -44,7 +44,7 @@ export async function resolveSandboxContext(params: {
     return {
       enabled: true,
       sessionKey: rawSessionKey,
-      workspaceDir: workspaceRoot,
+      workspaceDir: agentWorkspaceDir,
       agentWorkspaceDir,
       workspaceAccess: cfg.workspaceAccess,
       // No Docker fields - paths-only mode
