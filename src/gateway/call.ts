@@ -15,6 +15,7 @@ import {
   type GatewayClientName,
 } from "../utils/message-channel.js";
 import { loadGatewayTlsRuntime } from "../infra/tls/gateway.js";
+import { getTenantIdFromContext } from "../config/tenant-context.js";
 import { GatewayClient } from "./client.js";
 import { PROTOCOL_VERSION } from "./protocol/index.js";
 
@@ -186,6 +187,9 @@ export async function callGateway<T = unknown>(opts: CallGatewayOptions): Promis
   };
   const formatTimeoutError = () =>
     `gateway timeout after ${timeoutMs}ms\n${connectionDetails.message}`;
+  // Get tenant ID from AsyncLocalStorage context for multi-tenant isolation
+  const tenantId = getTenantIdFromContext();
+
   return await new Promise<T>((resolve, reject) => {
     let settled = false;
     let ignoreClose = false;
@@ -213,6 +217,8 @@ export async function callGateway<T = unknown>(opts: CallGatewayOptions): Promis
       deviceIdentity: loadOrCreateDeviceIdentity(),
       minProtocol: opts.minProtocol ?? PROTOCOL_VERSION,
       maxProtocol: opts.maxProtocol ?? PROTOCOL_VERSION,
+      // Propagate tenant context via header for multi-tenant isolation
+      headers: tenantId ? { "X-Tenant-ID": tenantId } : undefined,
       onHelloOk: async () => {
         try {
           const result = await client.request<T>(opts.method, opts.params, {

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { resolveStateDir } from "../config/paths.js";
+import { getTenantStateDirFromContext } from "../config/tenant-context.js";
 
 export type DeviceAuthEntry = {
   token: string;
@@ -19,6 +20,12 @@ type DeviceAuthStore = {
 const DEVICE_AUTH_FILE = "device-auth.json";
 
 function resolveDeviceAuthPath(env: NodeJS.ProcessEnv = process.env): string {
+  // Check for tenant context first (multi-tenant mode)
+  const tenantStateDir = getTenantStateDirFromContext();
+  if (tenantStateDir) {
+    return path.join(tenantStateDir, "identity", DEVICE_AUTH_FILE);
+  }
+  // Fallback to global state dir (single-tenant mode)
   return path.join(resolveStateDir(env), "identity", DEVICE_AUTH_FILE);
 }
 
