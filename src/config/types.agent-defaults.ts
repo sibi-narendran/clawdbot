@@ -208,7 +208,7 @@ export type AgentDefaultsConfig = {
   /** Optional sandbox settings for non-main sessions. */
   sandbox?: {
     /** Enable sandboxing for sessions. */
-    mode?: "off" | "non-main" | "all";
+    mode?: "off" | "non-main" | "all" | "paths-only";
     /**
      * Agent workspace access inside the sandbox.
      * - "none": do not mount the agent workspace into the container; use a sandbox workspace under workspaceRoot

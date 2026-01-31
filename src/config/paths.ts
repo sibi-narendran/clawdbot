@@ -31,8 +31,9 @@ export function resolveTenantStateDirFromId(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const baseDir = env.TENANT_DATA_DIR?.trim() || "/data/tenants";
+  // Resolve to absolute path to handle relative TENANT_DATA_DIR values like "./data/tenants"
   // Return tenant dir directly (no .openclaw subdir) to match platform structure
-  return path.join(baseDir, tenantId);
+  return path.resolve(baseDir, tenantId);
 }
 
 /**
