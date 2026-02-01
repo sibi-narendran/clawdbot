@@ -38,6 +38,11 @@ ${params.sessionContent.slice(0, 2000)}
 
 Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", "bug-fix"`;
 
+    // Use tenant's configured model instead of defaulting to Anthropic
+    const primaryModel = params.cfg.agents?.defaults?.model?.primary || "";
+    const [provider, ...modelParts] = primaryModel.split("/");
+    const model = modelParts.join("/");
+
     const result = await runEmbeddedPiAgent({
       sessionId: `slug-generator-${Date.now()}`,
       sessionKey: "temp:slug-generator",
@@ -48,6 +53,8 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
       prompt,
       timeoutMs: 15_000, // 15 second timeout
       runId: `slug-gen-${Date.now()}`,
+      // Use tenant's model for slug generation
+      ...(provider && model ? { provider, model } : {}),
     });
 
     // Extract text from payloads
