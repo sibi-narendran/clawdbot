@@ -1,0 +1,18 @@
+{
+  "name": "@openclaw/composio-direct",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Direct Composio integration with 150+ apps, per-tenant and per-agent filtering",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26",
+    "@sinclair/typebox": ">=0.32.0"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "composio-direct",
+  "kind": "tools",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "platformApiUrl": {
+        "type": "string",
+        "description": "Platform API URL for Composio endpoints",
+        "default": "http://localhost:3000"
+      }
+    }
+  }
+}
