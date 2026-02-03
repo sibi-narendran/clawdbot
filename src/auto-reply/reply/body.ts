@@ -11,6 +11,7 @@ export async function applySessionHints(params: {
   storePath?: string;
   abortKey?: string;
   messageId?: string;
+  includeMessageIdHints?: boolean;
 }): Promise<string> {
   let prefixedBodyBase = params.baseBody;
   const abortedHint = params.abortedLastRun
@@ -39,7 +40,10 @@ export async function applySessionHints(params: {
     }
   }
 
-  const messageIdHint = params.messageId?.trim() ? `[message_id: ${params.messageId.trim()}]` : "";
+  const messageIdHint =
+    params.includeMessageIdHints !== false && params.messageId?.trim()
+      ? `[message_id: ${params.messageId.trim()}]`
+      : "";
   if (messageIdHint) {
     prefixedBodyBase = `${prefixedBodyBase}\n${messageIdHint}`;
   }

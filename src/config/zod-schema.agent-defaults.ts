@@ -117,6 +117,8 @@ export const AgentDefaultsSchema = z
     elevatedDefault: z
       .union([z.literal("off"), z.literal("on"), z.literal("ask"), z.literal("full")])
       .optional(),
+    promptMode: z.union([z.literal("full"), z.literal("minimal"), z.literal("none")]).optional(),
+    includeMessageIdHints: z.boolean().optional(),
     blockStreamingDefault: z.union([z.literal("off"), z.literal("on")]).optional(),
     blockStreamingBreak: z.union([z.literal("text_end"), z.literal("message_end")]).optional(),
     blockStreamingChunk: BlockStreamingChunkSchema.optional(),

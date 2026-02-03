@@ -138,6 +138,16 @@ export type AgentDefaultsConfig = {
   verboseDefault?: "off" | "on" | "full";
   /** Default elevated level when no /elevated directive is present. */
   elevatedDefault?: "off" | "on" | "ask" | "full";
+  /**
+   * System prompt mode: "full" (all features), "minimal" (no reply tags), or "none".
+   * Default: "full" for main sessions, "minimal" for subagent sessions.
+   */
+  promptMode?: "full" | "minimal" | "none";
+  /**
+   * Whether to include message ID hints in the context (for WhatsApp reactions, etc.).
+   * Default: true. Set to false for web chat to avoid metadata leakage.
+   */
+  includeMessageIdHints?: boolean;
   /** Default block streaming level when no override is present. */
   blockStreamingDefault?: "off" | "on";
   /**

@@ -216,6 +216,7 @@ export async function runPreparedReply(
     storePath,
     abortKey: command.abortKey,
     messageId: sessionCtx.MessageSid,
+    includeMessageIdHints: cfg?.agents?.defaults?.includeMessageIdHints,
   });
   const isGroupSession = sessionEntry?.chatType === "group" || sessionEntry?.chatType === "channel";
   const isMainSession = !isGroupSession && sessionKey === normalizeMainKey(sessionCfg?.mainKey);
@@ -309,7 +310,9 @@ export async function runPreparedReply(
   const sessionFile = resolveSessionFilePath(sessionIdFinal, sessionEntry);
   const queueBodyBase = [threadStarterNote, baseBodyFinal].filter(Boolean).join("\n\n");
   const queueMessageId = sessionCtx.MessageSid?.trim();
-  const queueMessageIdHint = queueMessageId ? `[message_id: ${queueMessageId}]` : "";
+  const shouldIncludeMessageIdHints = cfg?.agents?.defaults?.includeMessageIdHints !== false;
+  const queueMessageIdHint =
+    shouldIncludeMessageIdHints && queueMessageId ? `[message_id: ${queueMessageId}]` : "";
   const queueBodyWithId = queueMessageIdHint
     ? `${queueBodyBase}\n${queueMessageIdHint}`
     : queueBodyBase;
