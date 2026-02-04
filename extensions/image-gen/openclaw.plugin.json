@@ -1,0 +1,9 @@
+{
+  "id": "image-gen",
+  "kind": "tools",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

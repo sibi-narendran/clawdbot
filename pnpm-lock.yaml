@@ -264,6 +264,16 @@ importers:
 
   extensions/bluebubbles: {}
 
+  extensions/composio-direct:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.47
+        version: 0.34.47
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/copilot-proxy: {}
 
   extensions/diagnostics-otel:
@@ -313,6 +323,16 @@ importers:
       google-auth-library:
         specifier: ^10.5.0
         version: 10.5.0
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
+  extensions/image-gen:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.47
+        version: 0.34.47
     devDependencies:
       openclaw:
         specifier: workspace:*
