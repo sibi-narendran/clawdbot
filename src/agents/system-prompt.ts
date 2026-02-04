@@ -54,8 +54,9 @@ function buildTimeSection(params: { userTimezone?: string }) {
   return ["## Current Date & Time", `Time zone: ${params.userTimezone}`, ""];
 }
 
-function buildReplyTagsSection(isMinimal: boolean) {
-  if (isMinimal) return [];
+function buildReplyTagsSection(isMinimal: boolean, runtimeChannel?: string) {
+  // Skip reply tags for webchat (platform web UI) - no threading needed
+  if (isMinimal || runtimeChannel === "webchat") return [];
   return [
     "## Reply Tags",
     "To request a native reply/quote on supported surfaces, include one tag in your reply:",
@@ -449,7 +450,7 @@ export function buildAgentSystemPrompt(params: {
     "## Workspace Files (injected)",
     "These user-editable files are loaded by OpenClaw and included below in Project Context.",
     "",
-    ...buildReplyTagsSection(isMinimal),
+    ...buildReplyTagsSection(isMinimal, runtimeChannel),
     ...buildMessagingSection({
       isMinimal,
       availableTools,

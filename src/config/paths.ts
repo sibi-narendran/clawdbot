@@ -30,7 +30,10 @@ export function resolveTenantStateDirFromId(
   tenantId: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const baseDir = env.TENANT_DATA_DIR?.trim() || "/data/tenants";
+  // Default: /data/tenants for production (Linux), ~/data/tenants for macOS local dev
+  const defaultDir =
+    process.platform === "darwin" ? path.join(os.homedir(), "data", "tenants") : "/data/tenants";
+  const baseDir = env.TENANT_DATA_DIR?.trim() || defaultDir;
   // Resolve to absolute path to handle relative TENANT_DATA_DIR values like "./data/tenants"
   // Return tenant dir directly (no .openclaw subdir) to match platform structure
   return path.resolve(baseDir, tenantId);
