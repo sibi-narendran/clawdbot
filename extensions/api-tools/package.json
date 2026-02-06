@@ -1,0 +1,18 @@
+{
+  "name": "@openclaw/api-tools",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Generic API tools from YAML definitions",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "yaml": "^2.7.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26",
+    "@sinclair/typebox": ">=0.32.0"
+  }
+}

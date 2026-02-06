@@ -1,0 +1,9 @@
+{
+  "id": "api-tools",
+  "kind": "tools",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
