@@ -59,9 +59,10 @@ function validateUrl(url: string, allowedHosts: string[]): void {
   }
 }
 
-function checkRequiredEnvVars(requires: string[] | undefined): void {
+function checkRequiredEnvVars(requires: string[] | undefined, env?: Record<string, string>): void {
   if (!requires || requires.length === 0) return;
-  const missing = requires.filter((key) => !process.env[key]);
+  const merged = { ...process.env, ...env };
+  const missing = requires.filter((key) => !merged[key]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
@@ -82,11 +83,11 @@ export async function executeApiTool(params: ApiToolExecuteParams): Promise<{
 
   try {
     // Check required env vars
-    checkRequiredEnvVars(definition.requires_env);
+    checkRequiredEnvVars(definition.requires_env, params.extraEnv);
 
     // Build template context
     const ctx: TemplateContext = {
-      env: process.env as Record<string, string | undefined>,
+      env: { ...process.env, ...params.extraEnv } as Record<string, string | undefined>,
       params: args,
     };
 

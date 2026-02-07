@@ -44,4 +44,5 @@ export interface ApiToolDefinition {
 export interface ApiToolExecuteParams {
   definition: ApiToolDefinition;
   args: Record<string, unknown>;
+  extraEnv?: Record<string, string>;
 }
