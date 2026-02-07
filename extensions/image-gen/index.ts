@@ -2,7 +2,8 @@
  * Image Generation Plugin for Clawdbot
  *
  * Provides a `generate_image` tool that calls OpenRouter's Gemini 3 Pro Image Preview
- * model to generate images from text prompts. Saves output to the agent's canvas/ directory.
+ * model to generate images from text prompts. Uploads output to Supabase Storage (public bucket)
+ * and returns a CDN-backed public URL.
  *
  * No shell/exec access needed — runs the API call directly in-process via fetch().
  */
@@ -16,8 +17,6 @@ type ToolContext = {
   agentId?: string;
   workspaceDir?: string;
 };
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 
 const MODEL = "google/gemini-3-pro-image-preview";
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -33,42 +32,113 @@ interface OpenRouterResponse {
             text?: string;
             image_url?: { url: string };
           }>;
+      /** OpenRouter returns images in a separate field for some models (e.g. Gemini) */
+      images?: Array<{
+        type: string;
+        image_url?: { url: string };
+        index?: number;
+      }>;
     };
   }>;
 }
 
+const DATA_URI_PATTERN = /data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)/;
+
+/**
+ * Extract base64 image data from a data URI string.
+ */
+function extractFromDataUri(url: string): { base64: string; ext: string } | null {
+  const match = url.match(DATA_URI_PATTERN);
+  return match ? { base64: match[2], ext: match[1] } : null;
+}
+
+/** Extract tenantId from agentDir path (e.g. .../tenants/{tenantId}/agents/...) */
+function extractTenantId(agentDir: string): string | null {
+  const parts = agentDir.split("/");
+  const agentsIdx = parts.indexOf("agents");
+  return agentsIdx > 0 ? parts[agentsIdx - 1] : null;
+}
+
+const MIME_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+};
+
+/** Upload image buffer to Supabase Storage via REST API */
+async function uploadToSupabase(
+  imageBuffer: Buffer,
+  storagePath: string,
+  ext: string,
+  logger?: { debug?: (...args: unknown[]) => void; error?: (...args: unknown[]) => void },
+): Promise<{ url: string }> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("SUPABASE_URL or SUPABASE_SERVICE_KEY not set");
+  }
+
+  const contentType = MIME_TYPES[ext] || "image/png";
+  const uploadUrl = `${supabaseUrl}/storage/v1/object/media/${storagePath}`;
+
+  logger?.debug?.(`image-gen: uploading to ${uploadUrl}`);
+
+  const res = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": contentType,
+    },
+    body: imageBuffer,
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Supabase upload failed (${res.status}): ${errorText}`);
+  }
+
+  const publicUrl = `${supabaseUrl}/storage/v1/object/public/media/${storagePath}`;
+  return { url: publicUrl };
+}
+
 /**
  * Extract base64 image data from an OpenRouter response.
- * Handles both string content (with inline data URI) and multipart content array.
+ * Handles three formats:
+ * 1. String content with inline data URI
+ * 2. Multipart content array with image_url parts
+ * 3. Separate `images` field on the message (used by Gemini models via OpenRouter)
  */
-function extractImage(content: OpenRouterResponse["choices"]): {
+function extractImage(choices: OpenRouterResponse["choices"]): {
   base64: string;
   ext: string;
 } | null {
-  const message = content?.[0]?.message?.content;
-  if (!message) return null;
+  const msg = choices?.[0]?.message;
+  if (!msg) return null;
+
+  // Check message.images[] first (OpenRouter's Gemini response format)
+  if (Array.isArray(msg.images)) {
+    for (const img of msg.images) {
+      if (img.type === "image_url" && img.image_url?.url) {
+        const result = extractFromDataUri(img.image_url.url);
+        if (result) return result;
+      }
+    }
+  }
+
+  const content = msg.content;
+  if (!content) return null;
 
   // String content: look for data URI
-  if (typeof message === "string") {
-    const match = message.match(
-      /data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)/,
-    );
-    if (match) {
-      return { base64: match[2], ext: match[1] };
-    }
-    return null;
+  if (typeof content === "string") {
+    return extractFromDataUri(content);
   }
 
   // Multipart content array: look for image_url parts
-  if (Array.isArray(message)) {
-    for (const part of message) {
+  if (Array.isArray(content)) {
+    for (const part of content) {
       if (part.type === "image_url" && part.image_url?.url) {
-        const match = part.image_url.url.match(
-          /data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)/,
-        );
-        if (match) {
-          return { base64: match[2], ext: match[1] };
-        }
+        const result = extractFromDataUri(part.image_url.url);
+        if (result) return result;
       }
     }
   }
@@ -94,7 +164,7 @@ const imageGenPlugin = {
           label: "generate image",
           description:
             "Generate an image from a text prompt using AI. " +
-            "The image is saved to the agent's canvas/ directory and the path is returned.",
+            "The image is uploaded to cloud storage and a public URL is returned.",
           parameters: Type.Object({
             prompt: Type.String({
               description:
@@ -137,7 +207,7 @@ const imageGenPlugin = {
                     text: JSON.stringify({
                       success: false,
                       error:
-                        "No agent directory available. Cannot save generated image.",
+                        "No agent directory available. Cannot upload generated image.",
                     }),
                   },
                 ],
@@ -176,7 +246,7 @@ const imageGenPlugin = {
                 },
                 body: JSON.stringify({
                   model: MODEL,
-                  modalities: ["image", "text"],
+                  response_modalities: ["IMAGE", "TEXT"],
                   messages: [{ role: "user", content: fullPrompt }],
                 }),
               });
@@ -238,20 +308,36 @@ const imageGenPlugin = {
                 };
               }
 
-              // Save to canvas/ directory
-              const canvasDir = join(agentDir, "canvas");
-              await mkdir(canvasDir, { recursive: true });
+              // Upload to Supabase Storage
+              const tenantId = extractTenantId(agentDir);
+              if (!tenantId) {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: JSON.stringify({
+                        success: false,
+                        error: "Could not determine tenant ID from agent directory.",
+                      }),
+                    },
+                  ],
+                };
+              }
 
+              const agentId = ctx.agentId || agentDir.split("/").pop() || "unknown";
               const filename = `generated-${Date.now()}.${image.ext}`;
-              const outputPath = join(canvasDir, filename);
+              const storagePath = `${tenantId}/${agentId}/${filename}`;
+              const imageBuffer = Buffer.from(image.base64, "base64");
 
-              await writeFile(
-                outputPath,
-                Buffer.from(image.base64, "base64"),
+              const { url } = await uploadToSupabase(
+                imageBuffer,
+                storagePath,
+                image.ext,
+                api.logger,
               );
 
               api.logger?.info?.(
-                `image-gen: saved image to ${outputPath}`,
+                `image-gen: uploaded image to ${url}`,
               );
 
               return {
@@ -260,7 +346,7 @@ const imageGenPlugin = {
                     type: "text" as const,
                     text: JSON.stringify({
                       success: true,
-                      path: outputPath,
+                      url,
                       filename,
                       prompt: fullPrompt,
                     }),
