@@ -177,11 +177,23 @@ const imageGenPlugin = {
                   "Appended to the prompt for style guidance.",
               }),
             ),
+            // reference_image_url: Optional signed URL from fetch_brand_image tool (brand-assets plugin).
+            // When provided, the image is fetched, converted to a base64 data URI, and sent as a
+            // multimodal message [image_url, text] to OpenRouter. This lets Gemini incorporate the
+            // reference image (e.g. a brand logo) into the generated image. Falls back gracefully
+            // to text-only if the fetch fails.
+            reference_image_url: Type.Optional(
+              Type.String({
+                description:
+                  "Signed URL of a reference image (e.g. brand logo or product photo) to incorporate into the generated image. " +
+                  "Use fetch_brand_image first to see the image, then pass its signedUrl here.",
+              }),
+            ),
           }),
 
           async execute(
             _toolCallId: string,
-            args: { prompt: string; style?: string },
+            args: { prompt: string; style?: string; reference_image_url?: string },
           ) {
             const apiKey = process.env.OPENROUTER_API_KEY;
             if (!apiKey) {
@@ -214,7 +226,7 @@ const imageGenPlugin = {
               };
             }
 
-            const { prompt, style } = args;
+            const { prompt, style, reference_image_url } = args;
             if (!prompt) {
               return {
                 content: [
@@ -232,6 +244,42 @@ const imageGenPlugin = {
             const fullPrompt = style ? `${prompt}, ${style} style` : prompt;
 
             try {
+              // Build message content — multimodal when a reference image is provided
+              let messageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }> = fullPrompt;
+
+              // When a reference image URL is provided (typically a signedUrl from
+              // fetch_brand_image in the brand-assets plugin), fetch it, convert to
+              // base64 data URI, and build a multimodal message [image, text] for
+              // OpenRouter. Gemini can then incorporate the reference (e.g. brand logo)
+              // into the generated image. Falls back to text-only on fetch failure.
+              if (reference_image_url) {
+                try {
+                  api.logger?.debug?.(`image-gen: fetching reference image from URL`);
+                  const refRes = await fetch(reference_image_url);
+                  if (refRes.ok) {
+                    const refBuffer = await refRes.arrayBuffer();
+                    const contentType = refRes.headers.get("content-type") || "image/png";
+                    const refBase64 = Buffer.from(refBuffer).toString("base64");
+                    const dataUri = `data:${contentType};base64,${refBase64}`;
+
+                    // Multimodal message: image first, then text prompt
+                    messageContent = [
+                      { type: "image_url", image_url: { url: dataUri } },
+                      { type: "text", text: fullPrompt },
+                    ];
+                    api.logger?.debug?.(`image-gen: attached reference image (${Math.round(refBuffer.byteLength / 1024)}KB)`);
+                  } else {
+                    api.logger?.warn?.(
+                      `image-gen: could not fetch reference image (${refRes.status}), proceeding without it`,
+                    );
+                  }
+                } catch (refError) {
+                  api.logger?.warn?.(
+                    `image-gen: reference image fetch failed, proceeding without it`,
+                  );
+                }
+              }
+
               api.logger?.debug?.(
                 `image-gen: generating image for prompt: "${fullPrompt.slice(0, 80)}..."`,
               );
@@ -247,7 +295,7 @@ const imageGenPlugin = {
                 body: JSON.stringify({
                   model: MODEL,
                   response_modalities: ["IMAGE", "TEXT"],
-                  messages: [{ role: "user", content: fullPrompt }],
+                  messages: [{ role: "user", content: messageContent }],
                 }),
               });
 

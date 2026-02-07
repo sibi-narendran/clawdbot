@@ -1,0 +1,9 @@
+{
+  "id": "brand-assets",
+  "kind": "tools",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
