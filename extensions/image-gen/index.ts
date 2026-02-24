@@ -23,6 +23,12 @@ const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 interface OpenRouterResponse {
   error?: { message?: string };
+  model?: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
   choices?: Array<{
     message?: {
       content?:
@@ -387,6 +393,26 @@ const imageGenPlugin = {
               api.logger?.info?.(
                 `image-gen: uploaded image to ${url}`,
               );
+
+              // Fire-and-forget usage tracking to platform
+              if (data.usage) {
+                const platformUrl = process.env.PLATFORM_URL || 'http://127.0.0.1:3000';
+                fetch(`${platformUrl}/api/internal/usage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    tenantId,
+                    agentSlug: ctx.agentId || agentDir.split('/').pop(),
+                    model: data.model || MODEL,
+                    type: 'image',
+                    inputTokens: data.usage.prompt_tokens || 0,
+                    outputTokens: data.usage.completion_tokens || 0,
+                    totalTokens: data.usage.total_tokens || 0,
+                  }),
+                }).catch((err) => {
+                  api.logger?.debug?.(`image-gen: usage tracking failed: ${err}`);
+                });
+              }
 
               return {
                 content: [
