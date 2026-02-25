@@ -224,6 +224,30 @@ export function createAgentEventHandler({
     // Include sessionKey so Control UI can filter tool streams per session.
     const agentPayload = sessionKey ? { ...evt, sessionKey } : evt;
     const last = agentRunSeq.get(evt.runId) ?? 0;
+    // Emit lightweight tool_start/tool_end on the chat channel so the UI
+    // can show tool-call chips during streaming, regardless of verbose level.
+    if (evt.stream === "tool" && !isAborted && sessionKey) {
+      const phase = typeof evt.data?.phase === "string" ? evt.data.phase : null;
+      if (phase === "start" || phase === "result") {
+        const toolPayload = {
+          runId: clientRunId,
+          sessionKey,
+          seq: evt.seq,
+          state: phase === "start" ? ("tool_start" as const) : ("tool_end" as const),
+          toolName: evt.data?.name as string | undefined,
+          toolCallId: evt.data?.toolCallId as string | undefined,
+          isError: phase === "result" ? (evt.data?.isError as boolean | undefined) : undefined,
+          meta: evt.data?.meta as string | undefined,
+        };
+        console.log(
+          `[ChatToolEvent] Emitting ${toolPayload.state}: tool=${toolPayload.toolName} runId=${clientRunId.substring(0, 8)}`,
+        );
+        if (!shouldSuppressHeartbeatBroadcast(clientRunId)) {
+          broadcast("chat", toolPayload, { dropIfSlow: true });
+        }
+        nodeSendToSession(sessionKey, "chat", toolPayload);
+      }
+    }
     if (evt.stream === "tool" && !shouldEmitToolEvents(evt.runId, sessionKey)) {
       agentRunSeq.set(evt.runId, evt.seq);
       return;
